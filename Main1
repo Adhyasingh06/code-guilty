@@ -1,0 +1,637 @@
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
+
+//  CUSTOM EXCEPTIONS
+
+class SuspectNotFoundException extends Exception {
+    public SuspectNotFoundException(String name) {
+        super("No suspect named '" + name + "' found in the case file.");
+    }
+}
+
+class InvalidInputException extends Exception {
+    public InvalidInputException(String msg) {
+        super("Invalid input: " + msg);
+    }
+}
+
+//  PERSON BASE CLASS
+
+
+class Person {
+    protected String name;
+
+    public Person(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+}
+
+//  SUSPECT CLASS
+
+
+class Suspect extends Person {
+    String alibi;
+    private int suspicionScore;
+    private final String personality;
+    private boolean interrogated = false;
+
+    public Suspect(String name, String personality) {
+        super(name);
+        this.personality = personality;
+        this.suspicionScore = 0;
+    }
+
+    public String getAlibi()         { return alibi; }
+    public String getPersonality()   { return personality; }
+    public int getSuspicionScore()   { return suspicionScore; }
+    public boolean isInterrogated()  { return interrogated; }
+    public void markInterrogated()   { interrogated = true; }
+
+    public void increaseSuspicion(int points) {
+        suspicionScore += points;
+    }
+
+    // Visual suspicion bar
+    public String suspicionBar() {
+        int bars = Math.min(suspicionScore / 5, 20);
+        return "█".repeat(bars) + "░".repeat(20 - bars) + " " + suspicionScore + " pts";
+    }
+}
+
+//  EVIDENCE CLASS
+
+
+class Evidence {
+    private final String description;
+    private final String explanation;
+    private final String relatedSuspect;
+    private boolean examined = false;
+
+    public Evidence(String description, String explanation, String relatedSuspect) {
+        this.description = description;
+        this.explanation = explanation;
+        this.relatedSuspect = relatedSuspect;
+    }
+
+    public String getDescription()   { return description; }
+    public String getExplanation()   { return explanation; }
+    public String getRelatedSuspect(){ return relatedSuspect; }
+    public boolean isExamined()      { return examined; }
+    public void markExamined()       { examined = true; }
+}
+
+//  NOTEBOOK — TRACKS DETECTIVE PROGRESS
+
+
+class DetectiveNotebook {
+    private final List<String> entries = new ArrayList<>();
+
+    public void log(String entry) {
+        entries.add("• " + entry);
+    }
+
+    public void display() {
+        System.out.println("\n📓 DETECTIVE NOTEBOOK");
+        System.out.println("─────────────────────────────");
+        if (entries.isEmpty()) {
+            System.out.println("  (empty — start investigating!)");
+        } else {
+            entries.forEach(System.out::println);
+        }
+        System.out.println("─────────────────────────────");
+    }
+}
+
+//  CASE FILE
+
+
+class CaseFile {
+    List<Suspect>  suspects  = new ArrayList<>();
+    List<Evidence> evidences = new ArrayList<>();
+}
+
+//  THREAD UTILITIES
+
+
+class TypewriterThread extends Thread {
+    private final String text;
+    private final int delay;
+
+    public TypewriterThread(String text, int delayMs) {
+        this.text  = text;
+        this.delay = delayMs;
+    }
+
+    @Override
+    public void run() {
+        for (char c : text.toCharArray()) {
+            System.out.print(c);
+            System.out.flush();
+            try {
+                Thread.sleep(delay);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        System.out.println();
+    }
+}
+
+class SpinnerThread extends Thread {
+    private final String label;
+    private final AtomicBoolean running = new AtomicBoolean(true);
+    private final String[] frames = {"⠋","⠙","⠸","⠴","⠦","⠇"};
+
+    public SpinnerThread(String label) {
+        this.label = label;
+        setDaemon(true);
+    }
+
+    public void stopSpinner() {
+        running.set(false);
+    }
+
+    @Override
+    public void run() {
+        int i = 0;
+        while (running.get()) {
+            System.out.print("\r" + frames[i % frames.length] + " " + label + "  ");
+            System.out.flush();
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            i++;
+        }
+        System.out.print("\r");
+        System.out.flush();
+    }
+}
+
+// Background hint thread that periodically nudges the player
+class HintThread extends Thread {
+    private final AtomicBoolean running = new AtomicBoolean(true);
+    private final String[] hints = {
+        "💡 Tip: Interrogate nervous suspects — pressure reveals cracks.",
+        "💡 Tip: Check all evidence before accusing.",
+        "💡 Tip: Compare suspicion scores in your notebook.",
+        "💡 Tip: The real culprit's alibi might seem too clean.",
+        "💡 Tip: Examine evidence carefully — weak clues mislead."
+    };
+    private final Random rand = new Random();
+
+    public HintThread() {
+        setDaemon(true);
+    }
+
+    public void stopHints() {
+        running.set(false);
+    }
+
+    @Override
+    public void run() {
+        try {
+            Thread.sleep(20_000); // first hint after 20 sec
+            while (running.get()) {
+                System.out.println("\n" + hints[rand.nextInt(hints.length)]);
+                Thread.sleep(30_000); // then every 30 sec
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+
+//  GAME ENGINE
+
+
+class GameEngine {
+
+    private final CaseFile caseFile = new CaseFile();
+    private final Scanner sc = new Scanner(System.in);
+    private final Random rand = new Random();
+    private final DetectiveNotebook notebook = new DetectiveNotebook();
+    private String realCulprit;
+
+    // Scoring
+    private int score = 100;
+    private int actionCount = 0;
+    private long startTime;
+
+    // Pools
+    private final String[] namePool = {
+        "John", "Alice", "Mark", "Sophia",
+        "David", "Emma", "Liam", "Olivia",
+        "Noah", "Ava", "Ethan", "Mia"
+    };
+
+    private final String[] personalityPool = {
+        "Calm", "Nervous", "Aggressive", "Calculating"
+    };
+
+    public GameEngine() {
+        generateCase();
+    }
+    private long seed = 12345; // SAME seed as HTML
+
+private double seededRandom() {
+    seed = (seed * 9301 + 49297) % 233280;
+    return (double) seed / 233280;
+}
+
+    // ── CASE GENERATION ──────────────────────
+
+    private void generateCase() {
+    caseFile.suspects.clear();
+    caseFile.evidences.clear();
+
+    List<String> names = new ArrayList<>(Arrays.asList(namePool));
+
+    shuffleList(names); // ✔️ first shuffle names
+
+    // Create suspects
+    for (int i = 0; i < 4; i++) {
+        String randomPersonality =
+            personalityPool[(int)(seededRandom() * personalityPool.length)];
+
+        caseFile.suspects.add(new Suspect(names.get(i), randomPersonality));
+    }
+
+    shuffleList(caseFile.suspects); // ✔️ shuffle suspects
+
+    // Random culprit
+    realCulprit = caseFile.suspects
+        .get((int)(seededRandom() * caseFile.suspects.size()))
+        .getName();
+
+    int caseType = (int)(seededRandom() * 3);
+
+    switch (caseType) {
+        case 0 -> generateCase0();
+        case 1 -> generateCase1();
+        default -> generateCase2();
+    }
+}
+// ✔️ Place this inside GameEngine class (but OUTSIDE any method)
+private void shuffleList(List<?> list) {
+    for (int i = list.size() - 1; i > 0; i--) {
+        int j = (int)(seededRandom() * (i + 1));
+        Collections.swap(list, i, j);
+    }
+}
+
+    private void generateCase0() {
+        List<Suspect> s = caseFile.suspects;
+
+        s.get(0).alibi = "I was in the kitchen, washing dishes.\nThe silence felt unnatural.\nI stayed there... I think.";
+        s.get(1).alibi = "I was on a call in my room.\nThe line suddenly cut off.\nI stepped outside briefly.";
+        s.get(2).alibi = "I argued with him earlier.\nI went to the balcony to cool off.\nWhen I came back... it was over.";
+        s.get(3).alibi = "I was reading in the library.\nI didn't hear anything unusual.\nBooks were my only company.";
+
+        addEvidence("🔪 Blood-stained knife", "Fingerprints match the culprit.", "Dinner presence — nothing conclusive.");
+        addEvidence("🍷 Overturned glass", "Wine suggests a struggle occurred.", "No sign of altercation near them.");
+    }
+
+    private void generateCase1() {
+        List<Suspect> s = caseFile.suspects;
+
+        s.get(0).alibi = "I was going through financial papers.\nDisagreements about money.\nI never left the study.";
+        s.get(1).alibi = "I heard something strange downstairs.\nI ignored it at first.\nMaybe I should have checked.";
+        s.get(2).alibi = "I was outside taking a heated call.\nI wasn't paying attention.\nI didn't hear anything.";
+        s.get(3).alibi = "I was preparing tea in the kitchen.\nNothing stood out to me.\nI went to bed early.";
+
+        addEvidence("📄 Forged document", "Signature is manipulated — benefits the culprit.", "Had document access but no manipulation found.");
+        addEvidence("💰 Missing cheque", "Cheque amount matches culprit's debt.", "No financial motive established.");
+    }
+
+    private void generateCase2() {
+        List<Suspect> s = caseFile.suspects;
+
+        s.get(0).alibi = "I was texting the entire time.\nYou can check my records.\nI didn't move from my spot.";
+        s.get(1).alibi = "My call got disconnected.\nI stepped out briefly to fix it.\nThat's all.";
+        s.get(2).alibi = "I was resting quietly.\nNothing unusual happened.\nJust another night.";
+        s.get(3).alibi = "I was in the garden.\nI heard a car, nothing more.\nI came in when it got cold.";
+
+        addEvidence("📱 Location mismatch", "Phone data contradicts culprit's alibi. Movement near scene.", "Phone activity normal — no unusual movement.");
+        addEvidence("🔦 Torch found", "Torch has culprit's DNA on grip.", "No connection to torch established.");
+    }
+
+    // Helper to add evidence
+    private void addEvidence(String strongTitle, String strongExplanation, String weakExplanation) {
+        for (Suspect s : caseFile.suspects) {
+            if (s.getName().equals(realCulprit)) {
+                caseFile.evidences.add(new Evidence(strongTitle, strongExplanation, s.getName()));
+            } else {
+                caseFile.evidences.add(new Evidence("🔍 Minor clue", weakExplanation + " (" + s.getName() + ")", s.getName()));
+            }
+        }
+    }
+
+    // (REST OF YOUR CODE REMAINS EXACTLY SAME — no changes needed)
+
+
+    // ── GAME LOOP ────────────────────────────
+
+    public void start() {
+        intro();
+        startTime = System.currentTimeMillis();
+
+        HintThread hintThread = new HintThread();
+        hintThread.start();
+
+        int choice = -1;
+        do {
+            printMenu();
+            try {
+                choice = readInt("Choose action: ");
+                handleChoice(choice);
+            } catch (InvalidInputException e) {
+                System.out.println("⚠  " + e.getMessage());
+            }
+        } while (choice != 6);
+
+        hintThread.stopHints();
+    }
+
+    private void handleChoice(int choice) throws InvalidInputException {
+        actionCount++;
+        score = Math.max(0, score - 2); // small penalty per action
+
+        switch (choice) {
+            case 1 -> viewSuspects();
+            case 2 -> {
+                try { interrogate(); }
+                catch (SuspectNotFoundException | InvalidInputException e) {
+                    System.out.println("⚠  " + e.getMessage());
+                }
+            }
+            case 3 -> viewEvidence();
+            case 4 -> viewHint();
+            case 5 -> notebook.display();
+            case 6 -> {
+                try { accuse(); }
+                catch (InvalidInputException e) {
+                    System.out.println("⚠  " + e.getMessage());
+                    score = Math.max(0, score - 10);
+                }
+            }
+            default -> throw new InvalidInputException("Choose a number between 1 and 6.");
+        }
+    }
+
+    // ── UI HELPERS ───────────────────────────
+
+    private void intro() {
+        System.out.println("══════════════════════════════════════");
+        System.out.println("              CODE: GUILTY            ");
+        System.out.println("══════════════════════════════════════");
+
+        String[] lines = {
+            "A crime has shattered the silence of a secluded mansion.\r\n" + //
+                                "The victim was found late at night under suspicious circumstances.\r\n" + //
+                                "There were no signs of forced entry — meaning the killer is someone inside.\r\n" + //
+                                "All four suspects were present at the scene. Each has a motive.\r\n" + //
+                                "Each has something to hide.\r\n" + //
+                                "Your job, Detective, is to uncover the truth using:\r\n" + //
+                                "evidence, interrogation, and logic.\r\n" + //
+                                "Be careful — not everyone is telling the truth.\r\n" + //
+                                "\n"
+        };
+
+        for (String line : lines) {
+            TypewriterThread tw = new TypewriterThread(line, 25);
+            tw.start();
+            try { tw.join(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }
+    }
+
+    private void printMenu() {
+        System.out.println("\n┌─────────────────────────────────┐");
+        System.out.println("│           INVESTIGATION         │");
+        System.out.println("├─────────────────────────────────┤");
+        System.out.println("│  1. View Suspects               │");
+        System.out.println("│  2. Interrogate Suspect         │");
+        System.out.println("│  3. Examine Evidence            │");
+        System.out.println("│  4. Request Hint  (-5 pts)      │");
+        System.out.println("│  5. Open Notebook               │");
+        System.out.println("│  6. Accuse & Close Case         │");
+        System.out.println("└─────────────────────────────────┘");
+        System.out.println("  Score: " + score + " | Actions: " + actionCount);
+    }
+
+    // ── ACTIONS ──────────────────────────────
+
+    private void viewSuspects() {
+        System.out.println("\n👥 SUSPECTS");
+        System.out.println("─────────────────────────────────────────────────────");
+        for (Suspect s : caseFile.suspects) {
+            String tag = s.isInterrogated() ? "✔ Interrogated" : "  Not yet questioned";
+            System.out.printf("  %-8s | %-12s | [%s] | %s%n",
+                s.getName(), s.getPersonality(), s.suspicionBar(), tag);
+        }
+        System.out.println("─────────────────────────────────────────────────────");
+        notebook.log("Reviewed suspect list.");
+    }
+
+    private void interrogate() throws SuspectNotFoundException, InvalidInputException {
+        String name = readString("Enter suspect name: ");
+        if (name.isBlank()) throw new InvalidInputException("Suspect name cannot be empty.");
+
+        Suspect found = null;
+        for (Suspect s : caseFile.suspects) {
+            if (s.getName().equalsIgnoreCase(name)) { found = s; break; }
+        }
+        if (found == null) throw new SuspectNotFoundException(name);
+
+        final Suspect suspect = found;
+
+        // Suspense delay in a separate thread
+        SpinnerThread spinner = new SpinnerThread("Interrogating " + suspect.getName());
+        spinner.start();
+        try { Thread.sleep(1800); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        spinner.stopSpinner();
+        try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+
+        // Suspicion based on personality
+        switch (suspect.getPersonality()) {
+            case "Nervous"     -> suspect.increaseSuspicion(15);
+            case "Aggressive"  -> suspect.increaseSuspicion(10);
+            case "Calculating" -> suspect.increaseSuspicion(12);
+            default            -> suspect.increaseSuspicion(5);
+        }
+        suspect.markInterrogated();
+
+        System.out.println("\n🗣  " + suspect.getName() + "'s Statement:");
+        System.out.println("─────────────────────────────");
+
+        // Typewriter for alibi
+        TypewriterThread tw = new TypewriterThread(suspect.getAlibi(), 18);
+        tw.start();
+        try { tw.join(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+
+        System.out.println("─────────────────────────────");
+        System.out.println("  Personality aura: " + suspect.getPersonality() +
+            " | Suspicion score now: " + suspect.getSuspicionScore());
+
+        notebook.log("Interrogated " + suspect.getName() +
+            " [" + suspect.getPersonality() + "] — alibi obtained.");
+    }
+
+    private void viewEvidence() {
+        System.out.println("\n🔍 EVIDENCE LOCKER");
+        System.out.println("══════════════════════════════════");
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+
+        for (Evidence e : caseFile.evidences) {
+            pool.submit(() -> {
+                synchronized (System.out) {
+                    if (!e.isExamined()) {
+                        e.markExamined();
+                        System.out.println("\n  " + e.getDescription());
+                        System.out.println("  → " + e.getExplanation());
+
+                        // Update suspicion scores
+                        for (Suspect s : caseFile.suspects) {
+                            if (s.getName().equals(e.getRelatedSuspect())) {
+                                if (s.getName().equals(realCulprit))
+                                    s.increaseSuspicion(25);
+                                else
+                                    s.increaseSuspicion(8);
+                            }
+                        }
+                    } else {
+                        System.out.println("  [Already examined] " + e.getDescription());
+                    }
+                }
+            });
+        }
+
+        pool.shutdown();
+        try {
+            if (!pool.awaitTermination(10, TimeUnit.SECONDS)) {
+                pool.shutdownNow();
+            }
+        } catch (InterruptedException ex) {
+            pool.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
+        System.out.println("══════════════════════════════════");
+        notebook.log("Examined evidence locker.");
+    }
+
+    private void viewHint() {
+        score = Math.max(0, score - 5); // hint costs points
+
+        // Find highest suspicion suspect
+        Suspect topSuspect = caseFile.suspects.stream()
+            .max(Comparator.comparingInt(Suspect::getSuspicionScore))
+            .orElse(null);
+
+        if (topSuspect != null) {
+            System.out.println("\n🔎 HINT: The data points most strongly toward " +
+                topSuspect.getName() + " (score: " + topSuspect.getSuspicionScore() + ").");
+            System.out.println("   But don't rely on this alone — investigate further.");
+        } else {
+            System.out.println("🔎 HINT: Examine all evidence and interrogate all suspects first.");
+        }
+        notebook.log("Requested a hint.");
+    }
+
+    private void accuse() throws InvalidInputException {
+        String name = readString("\n⚖  Who do you accuse? Enter name: ");
+        if (name.isBlank()) throw new InvalidInputException("You must name a suspect.");
+
+        boolean validSuspect = caseFile.suspects.stream()
+            .anyMatch(s -> s.getName().equalsIgnoreCase(name));
+        if (!validSuspect) throw new InvalidInputException("'" + name + "' is not a valid suspect.");
+
+        long elapsed = (System.currentTimeMillis() - startTime) / 1000;
+        int timeBonus = elapsed < 120 ? 20 : (elapsed < 300 ? 10 : 0);
+
+        System.out.println("\n┌──────────────────────────────────────┐");
+        System.out.println("│            VERDICT                   │");
+        System.out.println("└──────────────────────────────────────┘");
+
+        if (name.equalsIgnoreCase(realCulprit)) {
+            score += timeBonus;
+            System.out.println("✔  CORRECT! " + name + " breaks down and confesses.");
+            System.out.println("\n  \"I didn't mean for it to go that far...");
+            System.out.println("   The argument got out of hand.");
+            System.out.println("   I panicked. I'm sorry.\"\n");
+            System.out.println("  🏆 CASE CLOSED — Justice served.");
+            System.out.println("  ⏱  Time: " + elapsed + "s | Actions: " + actionCount);
+            System.out.println("  ⭐ Final Score: " + score + (timeBonus > 0 ? " (+" + timeBonus + " speed bonus)" : ""));
+        } else {
+            score = Math.max(0, score - 30);
+            System.out.println("✖  WRONG! " + name + " has a confirmed alibi.");
+            System.out.println("   The real culprit was: " + realCulprit);
+            System.out.println("   They escaped while you were distracted.");
+            System.out.println("  ⭐ Final Score: " + score + " (−30 wrong accusation)");
+        }
+
+        notebook.display();
+        offerReplay();
+    }
+
+    private void offerReplay() {
+        System.out.print("\nPlay again? (yes/no): ");
+        try {
+            String input = sc.nextLine().trim();
+            if (input.equalsIgnoreCase("yes") || input.equalsIgnoreCase("y")) {
+                // Reset and restart
+                caseFile.suspects.clear();
+                caseFile.evidences.clear();
+                score = 100;
+                actionCount = 0;
+                generateCase();
+                start();
+            } else {
+                System.out.println("\nThe truth was found today. Until next time, Detective.");
+            }
+        } catch (NoSuchElementException e) {
+            System.out.println("\nGoodbye, Detective.");
+        }
+    }
+
+    // ── INPUT HELPERS ────────────────────────
+
+    private int readInt(String prompt) throws InvalidInputException {
+        System.out.print(prompt);
+        try {
+            String line = sc.nextLine().trim();
+            return Integer.parseInt(line);
+        } catch (NumberFormatException e) {
+            throw new InvalidInputException("Please enter a valid number.");
+        } catch (NoSuchElementException e) {
+            throw new InvalidInputException("Input stream ended unexpectedly.");
+        }
+    }
+
+    private String readString(String prompt) {
+        System.out.print(prompt);
+        try {
+            return sc.nextLine().trim();
+        } catch (NoSuchElementException e) {
+            return "";
+        }
+    }
+}
+
+//  MAIN
+
+
+public class Main1 {
+    public static void main(String[] args) {
+        new GameEngine().start();
+    }
+}
