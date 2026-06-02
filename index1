@@ -1,0 +1,1749 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CODE: GUILTY — Detective Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Bebas+Neue&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --ink: #0d0b08;
+    --paper: #f5f0e8;
+    --paper-dark: #ede6d6;
+    --paper-mid: #e8e0cc;
+    --accent: #c8392b;
+    --accent-dark: #8b2218;
+    --gold: #b8962a;
+    --gold-light: #d4af47;
+    --muted: #6b6055;
+    --muted-light: #9a8f82;
+    --border: #c4b89a;
+    --border-light: #d8cdb6;
+    --shadow: rgba(13,11,8,0.18);
+    --green-clue: #2d6a4f;
+    --red-alert: #c8392b;
+    --scan-line: rgba(13,11,8,0.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; }
+
+  body {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    background: var(--ink);
+    color: var(--paper);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, var(--scan-line) 0px, var(--scan-line) 1px, transparent 1px, transparent 3px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9998;
+    opacity: 0.4;
+  }
+
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  #screen-title {
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at 50% 30%, #1a1208 0%, #0d0b08 70%);
+    position: relative;
+    overflow: hidden;
+  }
+  #screen-title .bg-tape {
+    position: absolute;
+    background: rgba(200,57,43,0.08);
+    transform: rotate(-2deg);
+    width: 200%;
+    height: 3px;
+    top: 38%;
+  }
+  .title-badge {
+    font-family: 'Courier Prime', monospace;
+    font-size: 11px;
+    letter-spacing: 0.35em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+    opacity: 0.8;
+  }
+  .title-main {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(72px, 14vw, 140px);
+    letter-spacing: 0.05em;
+    line-height: 0.85;
+    color: var(--paper);
+    text-shadow: 4px 4px 0 var(--accent-dark), 8px 8px 0 rgba(0,0,0,0.4);
+    margin-bottom: 0.4rem;
+  }
+  .title-sub {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(28px, 5vw, 52px);
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    margin-bottom: 3rem;
+  }
+  .title-divider {
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    margin: 0 auto 2.5rem;
+  }
+  .title-tagline {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--muted-light);
+    margin-bottom: 3rem;
+    max-width: 440px;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .btn {
+    font-family: 'Courier Prime', monospace;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 14px 36px;
+    border: 1px solid var(--gold);
+    background: transparent;
+    color: var(--gold);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .btn::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid rgba(184,150,42,0.25);
+  }
+  .btn:hover {
+    background: var(--gold);
+    color: var(--ink);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(184,150,42,0.25);
+  }
+  .btn:active { transform: translateY(0); }
+  .btn-danger {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .btn-danger::before { border-color: rgba(200,57,43,0.25); }
+  .btn-danger:hover { background: var(--accent); color: var(--paper); box-shadow: 0 4px 20px rgba(200,57,43,0.3); }
+  .btn-sm { padding: 8px 20px; font-size: 11px; }
+  .btn-ghost {
+    border-color: rgba(245,240,232,0.2);
+    color: var(--muted-light);
+  }
+  .btn-ghost::before { display: none; }
+  .btn-ghost:hover { background: rgba(245,240,232,0.08); color: var(--paper); box-shadow: none; }
+
+  #screen-loading {
+    align-items: center;
+    justify-content: center;
+    background: var(--ink);
+  }
+  .loading-case {
+    text-align: center;
+    max-width: 500px;
+  }
+  .loading-stamp {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 80px;
+    color: var(--accent);
+    opacity: 0.15;
+    letter-spacing: 0.05em;
+    line-height: 1;
+    margin-bottom: 1rem;
+  }
+  .loading-label {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    margin-bottom: 1rem;
+  }
+  #loading-status {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--muted-light);
+    min-height: 28px;
+  }
+  .loading-dots::after {
+    content: '';
+    animation: dots 1.5s infinite;
+  }
+  @keyframes dots {
+    0%   { content: ''; }
+    25%  { content: '.'; }
+    50%  { content: '..'; }
+    75%  { content: '...'; }
+  }
+  .loading-bar-wrap {
+    margin-top: 2rem;
+    width: 300px;
+    height: 2px;
+    background: rgba(245,240,232,0.1);
+  }
+  .loading-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--accent));
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+
+  #screen-game {
+    flex-direction: row;
+    min-height: 100vh;
+    background: #100e0b;
+  }
+
+  .sidebar {
+    width: 280px;
+    min-width: 280px;
+    border-right: 1px solid rgba(196,184,154,0.15);
+    display: flex;
+    flex-direction: column;
+    background: #0d0b08;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .sidebar-header {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid rgba(196,184,154,0.12);
+  }
+  .sidebar-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    letter-spacing: 0.1em;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .sidebar-case-id {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .score-panel {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(196,184,154,0.12);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .score-item label {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  .score-item .val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    color: var(--paper);
+    line-height: 1;
+  }
+  .score-item.accent .val { color: var(--gold); }
+
+  .sidebar-nav { padding: 16px 12px; flex: 1; }
+  .nav-section-label {
+    font-size: 9px;
+    letter-spacing: 0.35em;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding: 0 8px;
+    margin-bottom: 8px;
+  }
+  .nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 12px;
+    background: transparent;
+    border: none;
+    color: var(--muted-light);
+    font-family: 'Courier Prime', monospace;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 2px;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+    position: relative;
+  }
+  .nav-btn .icon { font-size: 16px; width: 20px; text-align: center; }
+  .nav-btn:hover { background: rgba(245,240,232,0.06); color: var(--paper); }
+  .nav-btn.active { background: rgba(184,150,42,0.12); color: var(--gold); }
+  .nav-btn.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px;
+    background: var(--gold);
+  }
+  .nav-btn .badge {
+    margin-left: auto;
+    font-size: 10px;
+    background: var(--accent);
+    color: var(--paper);
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-family: 'Courier Prime', monospace;
+  }
+  .nav-btn-accuse {
+    margin-top: 8px;
+    background: rgba(200,57,43,0.1);
+    color: var(--accent);
+    border: 1px solid rgba(200,57,43,0.25);
+  }
+  .nav-btn-accuse:hover { background: rgba(200,57,43,0.2); color: #e85a4a; }
+
+  .sidebar-bottom {
+    padding: 16px 20px;
+    border-top: 1px solid rgba(196,184,154,0.12);
+  }
+  .hint-cost {
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  .main-content {
+    flex: 1;
+    padding: 32px 36px;
+    overflow-y: auto;
+  }
+
+  .panel { display: none; animation: panelIn 0.25s ease; }
+  .panel.active { display: block; }
+  @keyframes panelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .panel-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 42px;
+    letter-spacing: 0.06em;
+    color: var(--paper);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .panel-subtitle {
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+  .panel-divider {
+    height: 1px;
+    background: linear-gradient(90deg, var(--gold), transparent);
+    margin-bottom: 28px;
+    opacity: 0.5;
+  }
+
+  .case-stamp {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 100px;
+    color: var(--accent);
+    opacity: 0.06;
+    letter-spacing: 0.05em;
+    line-height: 1;
+    float: right;
+    margin-top: -20px;
+  }
+  .case-narrative {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px;
+    line-height: 1.85;
+    color: var(--paper);
+    max-width: 640px;
+    margin-bottom: 28px;
+  }
+  .case-narrative p { margin-bottom: 1.1em; }
+  .case-narrative p:last-child { margin-bottom: 0; }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .info-card {
+    border: 1px solid rgba(196,184,154,0.2);
+    padding: 16px;
+    background: rgba(245,240,232,0.03);
+    position: relative;
+  }
+  .info-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 40px; height: 2px;
+    background: var(--gold);
+    opacity: 0.5;
+  }
+  .info-card label {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .info-card .info-val {
+    font-size: 14px;
+    color: var(--paper);
+    line-height: 1.4;
+  }
+
+  .suspects-grid { display: flex; flex-direction: column; gap: 16px; }
+
+  .suspect-card {
+    border: 1px solid rgba(196,184,154,0.18);
+    background: rgba(245,240,232,0.02);
+    padding: 0;
+    position: relative;
+    transition: border-color 0.2s;
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .suspect-card:hover { border-color: rgba(184,150,42,0.4); }
+  .suspect-card.interrogated { border-color: rgba(184,150,42,0.25); }
+
+  .suspect-card-inner { padding: 20px 24px; display: flex; align-items: flex-start; gap: 20px; }
+  .suspect-avatar {
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    border: 1px solid rgba(196,184,154,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    color: var(--gold);
+    background: rgba(184,150,42,0.06);
+    position: relative;
+  }
+  .suspect-avatar .initials { line-height: 1; }
+
+  .suspect-info { flex: 1; }
+  .suspect-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--paper);
+    margin-bottom: 2px;
+  }
+  .suspect-personality {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .suspicion-bar-wrap { margin-bottom: 10px; }
+  .suspicion-bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+  }
+  .suspicion-bar-track {
+    height: 4px;
+    background: rgba(245,240,232,0.08);
+    overflow: hidden;
+  }
+  .suspicion-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--accent));
+    transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .suspect-alibi {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--muted-light);
+    line-height: 1.6;
+    border-left: 2px solid rgba(196,184,154,0.2);
+    padding-left: 14px;
+    margin-top: 10px;
+    display: none;
+  }
+  .suspect-card.interrogated .suspect-alibi { display: block; }
+
+  .suspect-tag {
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border: 1px solid;
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+  .suspect-tag.yes { border-color: var(--gold); color: var(--gold); }
+  .suspect-tag.no { border-color: rgba(196,184,154,0.2); color: var(--muted); }
+
+  .interrogate-btn-row {
+    padding: 0 24px 20px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+
+  .evidence-list { display: flex; flex-direction: column; gap: 16px; }
+
+  .evidence-card {
+    border: 1px solid rgba(196,184,154,0.15);
+    background: rgba(245,240,232,0.02);
+    padding: 20px 24px;
+    position: relative;
+    transition: border-color 0.25s;
+  }
+  .evidence-card.examined { border-color: rgba(45,106,79,0.35); }
+  .evidence-card:not(.examined) { cursor: pointer; }
+  .evidence-card:not(.examined):hover { border-color: rgba(196,184,154,0.35); }
+
+  .evidence-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .evidence-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--paper);
+  }
+  .evidence-status {
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .evidence-status.examined { border-color: rgba(45,106,79,0.5); color: var(--green-clue); }
+  .evidence-status.new { border-color: rgba(200,57,43,0.4); color: var(--accent); animation: pulse-border 2s infinite; }
+  @keyframes pulse-border { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .evidence-desc {
+    font-size: 14px;
+    color: var(--muted-light);
+    line-height: 1.65;
+    margin-bottom: 10px;
+  }
+  .evidence-detail {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--gold);
+    line-height: 1.6;
+    display: none;
+    border-top: 1px solid rgba(196,184,154,0.12);
+    padding-top: 12px;
+    margin-top: 4px;
+  }
+  .evidence-card.examined .evidence-detail { display: block; }
+  .evidence-hint { font-size: 11px; color: var(--muted); letter-spacing: 0.1em; margin-top: 8px; }
+
+  .notebook-paper {
+    background: #faf6ed;
+    border: 1px solid var(--border);
+    color: var(--ink);
+    padding: 32px 36px 36px;
+    max-width: 660px;
+    position: relative;
+    box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
+  }
+  .notebook-paper::before {
+    content: '';
+    position: absolute;
+    left: 72px; top: 0; bottom: 0;
+    width: 1px;
+    background: rgba(200,57,43,0.2);
+  }
+  .notebook-header {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 20px;
+    padding-left: 50px;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    padding-bottom: 12px;
+  }
+  .notebook-entry {
+    font-family: 'Courier Prime', monospace;
+    font-size: 14px;
+    line-height: 2;
+    color: #2a2018;
+    padding-left: 50px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+  .notebook-entry::before {
+    content: '→ ';
+    color: var(--accent);
+  }
+  .notebook-empty {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    color: var(--muted);
+    padding-left: 50px;
+    font-size: 15px;
+    line-height: 2;
+  }
+  .notebook-stamp {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 48px;
+    color: var(--accent);
+    opacity: 0.08;
+    transform: rotate(-8deg);
+    letter-spacing: 0.05em;
+  }
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal-box {
+    background: #0d0b08;
+    border: 1px solid rgba(196,184,154,0.25);
+    max-width: 560px;
+    width: 100%;
+    position: relative;
+    animation: modalIn 0.3s ease;
+  }
+  @keyframes modalIn { from { opacity:0; transform: scale(0.96) translateY(10px); } to { opacity:1; transform: scale(1) translateY(0); } }
+
+  .modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid rgba(196,184,154,0.12);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 0.08em;
+    color: var(--paper);
+  }
+  .modal-close {
+    background: none;
+    border: 1px solid rgba(196,184,154,0.2);
+    color: var(--muted-light);
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-family: 'Courier Prime', monospace;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .modal-close:hover { border-color: var(--accent); color: var(--accent); }
+
+  .modal-body { padding: 24px; }
+
+  .interrogation-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+  }
+  .spinner-ring {
+    width: 48px; height: 48px;
+    border: 2px solid rgba(184,150,42,0.2);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner-label {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .alibi-text {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 17px;
+    line-height: 1.9;
+    color: var(--paper);
+    border-left: 2px solid var(--gold);
+    padding-left: 20px;
+    margin-bottom: 20px;
+  }
+  .suspicion-result {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(245,240,232,0.04);
+    border: 1px solid rgba(196,184,154,0.12);
+  }
+  .suspicion-result-label { font-size: 11px; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; }
+  .suspicion-result-val { font-family: 'Bebas Neue', sans-serif; font-size: 32px; color: var(--gold); line-height: 1; }
+  .suspicion-result-desc { font-size: 12px; color: var(--muted-light); margin-top: 2px; }
+
+  .accuse-suspects { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+  .accuse-option {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    border: 1px solid rgba(196,184,154,0.15);
+    background: transparent;
+    color: var(--paper);
+    cursor: pointer;
+    text-align: left;
+    font-family: 'Courier Prime', monospace;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .accuse-option:hover { border-color: rgba(200,57,43,0.4); background: rgba(200,57,43,0.06); }
+  .accuse-option.selected { border-color: var(--accent); background: rgba(200,57,43,0.1); }
+  .accuse-option .opt-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .accuse-option .opt-score {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--gold);
+  }
+  .accuse-option .opt-personality {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .accuse-warning {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 15px;
+    color: var(--muted-light);
+    border-left: 2px solid var(--accent);
+    padding-left: 16px;
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  #screen-verdict {
+    align-items: center;
+    justify-content: center;
+    background: #0d0b08;
+    position: relative;
+    overflow: hidden;
+  }
+  .verdict-glow {
+    position: absolute;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    opacity: 0.05;
+    pointer-events: none;
+  }
+  .verdict-glow.correct { background: radial-gradient(circle, #2d6a4f, transparent 70%); }
+  .verdict-glow.wrong { background: radial-gradient(circle, #c8392b, transparent 70%); }
+
+  .verdict-box {
+    text-align: center;
+    max-width: 560px;
+    padding: 20px;
+    position: relative;
+    z-index: 1;
+  }
+  .verdict-stamp {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 100px;
+    line-height: 0.9;
+    letter-spacing: 0.04em;
+    margin-bottom: 1rem;
+  }
+  .verdict-stamp.correct { color: var(--green-clue); }
+  .verdict-stamp.wrong { color: var(--accent); }
+
+  .verdict-headline {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--paper);
+    margin-bottom: 0.5rem;
+  }
+  .verdict-sub {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--muted-light);
+    margin-bottom: 2rem;
+    line-height: 1.7;
+  }
+  .verdict-divider { width: 120px; height: 1px; background: rgba(196,184,154,0.3); margin: 0 auto 2rem; }
+
+  .verdict-stats {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+    gap: 16px;
+    margin-bottom: 2.5rem;
+  }
+  .verdict-stat { border: 1px solid rgba(196,184,154,0.15); padding: 14px; }
+  .verdict-stat label {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .verdict-stat .stat-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .verdict-confession {
+    background: rgba(245,240,232,0.04);
+    border: 1px solid rgba(196,184,154,0.12);
+    border-left: 3px solid var(--gold);
+    padding: 20px 24px;
+    text-align: left;
+    margin-bottom: 2rem;
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--paper);
+    line-height: 1.8;
+  }
+  .verdict-btns { display: flex; gap: 16px; justify-content: center; }
+
+  .hint-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #0d0b08;
+    border: 1px solid rgba(184,150,42,0.4);
+    padding: 16px 20px;
+    max-width: 320px;
+    z-index: 2000;
+    animation: toastIn 0.3s ease;
+    display: none;
+  }
+  .hint-toast.show { display: block; }
+  @keyframes toastIn { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
+  .hint-toast-label { font-size: 9px; letter-spacing: 0.3em; color: var(--gold); margin-bottom: 6px; text-transform: uppercase; }
+  .hint-toast-text { font-family: 'Playfair Display', serif; font-style: italic; font-size: 14px; color: var(--paper); line-height: 1.6; }
+
+  .typewriter { display: inline; }
+  .typewriter-cursor { display: inline-block; width: 2px; height: 1em; background: var(--gold); animation: blink 1s step-end infinite; vertical-align: text-bottom; margin-left: 2px; }
+  @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+  .ai-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    color: var(--gold);
+    border: 1px solid rgba(184,150,42,0.3);
+    padding: 3px 10px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .ai-dot { width: 5px; height: 5px; background: var(--gold); border-radius: 50%; animation: pulse-dot 2s infinite; }
+  @keyframes pulse-dot { 0%,100% { transform: scale(1); opacity:1; } 50% { transform: scale(1.4); opacity:0.6; } }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+  ::-webkit-scrollbar-thumb { background: rgba(196,184,154,0.2); }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(196,184,154,0.35); }
+
+  @media (max-width: 900px) {
+    #screen-game { flex-direction: column; }
+    .sidebar { width: 100%; min-width: unset; height: auto; position: static; }
+    .sidebar-nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px; }
+    .nav-section-label { display: none; }
+    .nav-btn { flex: none; }
+    .main-content { padding: 20px; }
+    .info-grid { grid-template-columns: 1fr 1fr; }
+    .verdict-stats { grid-template-columns: 1fr 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<section class="screen active" id="screen-title">
+  <div class="bg-tape"></div>
+  <div style="text-align:center; position:relative; z-index:1;">
+    <div class="title-badge">&#9632; Case No. Unknown &bull; Classified &bull; Eyes Only &#9632;</div>
+    <div class="title-main">CODE:</div>
+    <div class="title-sub">G U I L T Y</div>
+    <div class="title-divider"></div>
+    <div class="title-tagline">
+      A murder. Four suspects. One truth.<br/>
+      Every action leaves a mark. Find the guilty before justice sleeps.
+    </div>
+    <button class="btn" id="btn-new-case" style="min-width:220px;">
+      &#9654; &nbsp; Open New Case
+    </button>
+    <div style="margin-top:16px;">
+      <div class="ai-badge"><span class="ai-dot"></span>AI-Powered Dynamic Cases</div>
+    </div>
+    <div style="margin-top:24px;">
+      <button class="btn btn-ghost btn-sm" onclick="showHowToPlay()">How to Play</button>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="screen-loading">
+  <div class="loading-case">
+    <div class="loading-stamp">CASE</div>
+    <div class="loading-label">Generating Case File</div>
+    <div id="loading-status" class="loading-dots">Contacting dispatch</div>
+    <div style="display:flex; justify-content:center; margin-top:16px;">
+      <div class="loading-bar-wrap">
+        <div class="loading-bar" id="loading-bar"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="screen-game">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">CODE: GUILTY</div>
+      <div class="sidebar-case-id" id="sidebar-case-id">Case #0000 — Initializing</div>
+    </div>
+    <div class="score-panel">
+      <div class="score-item accent">
+        <label>Score</label>
+        <div class="val" id="score-display">100</div>
+      </div>
+      <div class="score-item">
+        <label>Actions</label>
+        <div class="val" id="action-display">0</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Investigation</div>
+      <button class="nav-btn active" data-panel="brief">
+        <span class="icon">&#128196;</span> Case Brief
+      </button>
+      <button class="nav-btn" data-panel="suspects">
+        <span class="icon">&#128100;</span> Suspects
+        <span class="badge" id="suspects-badge">4</span>
+      </button>
+      <button class="nav-btn" data-panel="evidence">
+        <span class="icon">&#128269;</span> Evidence
+        <span class="badge" id="evidence-badge">0</span>
+      </button>
+      <div class="nav-section-label" style="margin-top:16px;">Tools</div>
+      <button class="nav-btn" data-panel="notebook">
+        <span class="icon">&#128221;</span> Notebook
+      </button>
+      <button class="nav-btn" id="btn-hint">
+        <span class="icon">&#128161;</span> Request Hint
+      </button>
+      <div class="nav-section-label" style="margin-top:16px;">Resolution</div>
+      <button class="nav-btn nav-btn-accuse" data-panel="accuse">
+        <span class="icon">&#9878;</span> Make Accusation
+      </button>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="btn btn-ghost btn-sm" onclick="goToTitle()" style="width:100%; text-align:center;">&#8592; Abandon Case</button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+
+    <div class="panel active" id="panel-brief">
+      <div class="panel-title">Case Brief</div>
+      <div class="panel-subtitle" id="brief-subtitle">Classified — Detective Eyes Only</div>
+      <div class="panel-divider"></div>
+      <div class="ai-badge"><span class="ai-dot"></span>AI Generated Case</div>
+      <div class="case-stamp">OPEN</div>
+      <div class="case-narrative" id="brief-narrative">
+        <p>Loading case details...</p>
+      </div>
+      <div class="info-grid" id="brief-info-grid"></div>
+    </div>
+
+    <div class="panel" id="panel-suspects">
+      <div class="panel-title">Suspects</div>
+      <div class="panel-subtitle">4 Persons of Interest — Question Each Carefully</div>
+      <div class="panel-divider"></div>
+      <div class="suspects-grid" id="suspects-grid"></div>
+    </div>
+
+    <div class="panel" id="panel-evidence">
+      <div class="panel-title">Evidence Locker</div>
+      <div class="panel-subtitle">Click an item to examine it — new clues affect suspicion scores</div>
+      <div class="panel-divider"></div>
+      <div class="evidence-list" id="evidence-list"></div>
+    </div>
+
+    <div class="panel" id="panel-notebook">
+      <div class="panel-title">Detective Notebook</div>
+      <div class="panel-subtitle">Auto-logged investigation trail</div>
+      <div class="panel-divider"></div>
+      <div class="notebook-paper">
+        <div class="notebook-stamp">NOTES</div>
+        <div class="notebook-header">Investigation Notes</div>
+        <div id="notebook-entries">
+          <div class="notebook-empty">Begin investigating to see notes appear here.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-accuse">
+      <div class="panel-title">Make Your Accusation</div>
+      <div class="panel-subtitle">Choose wisely — a wrong accusation costs 30 points</div>
+      <div class="panel-divider"></div>
+      <p class="accuse-warning">
+        Once you name your suspect, the case closes. There is no going back.
+        The guilty will face justice — or the innocent will be wronged.
+        Your reputation as a detective depends on this moment.
+      </p>
+      <div class="accuse-suspects" id="accuse-suspects"></div>
+      <button class="btn btn-danger" id="btn-confirm-accuse" disabled style="min-width:220px;">
+        &#9878; &nbsp; Confirm Accusation
+      </button>
+    </div>
+
+  </main>
+</section>
+
+<section class="screen" id="screen-verdict">
+  <div class="verdict-glow" id="verdict-glow"></div>
+  <div class="verdict-box">
+    <div class="verdict-stamp" id="verdict-stamp">CASE<br>CLOSED</div>
+    <div class="verdict-headline" id="verdict-headline"></div>
+    <div class="verdict-sub" id="verdict-sub"></div>
+    <div class="verdict-divider"></div>
+    <div class="verdict-stats">
+      <div class="verdict-stat"><label>Final Score</label><div class="stat-val" id="vs-score"></div></div>
+      <div class="verdict-stat"><label>Actions</label><div class="stat-val" id="vs-actions"></div></div>
+      <div class="verdict-stat"><label>Time</label><div class="stat-val" id="vs-time"></div></div>
+    </div>
+    <div class="verdict-confession" id="verdict-confession"></div>
+    <div class="verdict-btns">
+      <button class="btn" onclick="startNewGame()">&#9654; New Case</button>
+      <button class="btn btn-ghost" onclick="goToTitle()">&#8592; Exit</button>
+    </div>
+  </div>
+</section>
+
+<div class="modal-overlay" id="modal-interrogate">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-suspect-name">Interrogation</div>
+      <button class="modal-close" id="modal-close-btn">&#10005;</button>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <div class="interrogation-spinner">
+        <div class="spinner-ring"></div>
+        <div class="spinner-label">Interrogating suspect</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="hint-toast" id="hint-toast">
+  <div class="hint-toast-label">&#128161; Detective Hint</div>
+  <div class="hint-toast-text" id="hint-toast-text"></div>
+</div>
+
+<script>
+  // Add this at top (GLOBAL)
+let seed = 12345; // you can sync this with Java
+
+function seededRandom() {
+  seed = (seed * 9301 + 49297) % 233280;
+  return seed / 233280;
+}
+// ═══════════════════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════════════════
+const GS = {
+  score: 100,
+  actions: 0,
+  startTime: 0,
+  realCulprit: '',
+  caseId: '',
+  caseTitle: '',
+  suspects: [],
+  evidence: [],
+  notebook: [],
+  accusedName: null,
+};
+
+// ═══════════════════════════════════════════════════════
+//  API — GENERATE CASE WITH JAVA
+// ═══════════════════════════════════════════════════════
+function generateCaseLikeJava() {
+
+  const namePool = [
+    "John", "Alice", "Mark", "Sophia",
+    "David", "Emma", "Liam", "Olivia",
+    "Noah", "Ava", "Ethan", "Mia"
+  ];
+
+  const personalityPool = ["Calm", "Nervous", "Aggressive", "Calculating"];
+
+  // Shuffle names
+  const shuffledNames = [...namePool].sort(() => seededRandom() - 0.5);
+
+  // Pick 4 suspects
+  const suspects = shuffledNames.slice(0, 4).map(name => ({
+    name,
+    personality: personalityPool[Math.floor(seededRandom() * personalityPool.length)],
+    alibi: "",
+    interrogationResponse: "",
+    isLying: false
+  }));
+
+  // Shuffle suspects again
+  suspects.sort(() => seededRandom() - 0.5);
+
+  // Pick culprit
+  const culprit = suspects[Math.floor(seededRandom() * suspects.length)].name;
+
+  // Assign lying behavior
+  suspects.forEach(s => {
+    if (s.name === culprit) {
+      s.isLying = true;
+    } else {
+      s.isLying = Math.random() < 0.25;
+    }
+  });
+
+  const caseType = Math.floor(seededRandom() * 3);
+  let evidence = [];
+
+  function addEvidence(strongTitle, strongDetail, weakDetail) {
+    suspects.forEach(s => {
+      if (s.name === culprit) {
+        evidence.push({
+          title: strongTitle,
+          description: strongTitle,
+          relatedSuspect: s.name,
+          detail: strongDetail,
+          isStrong: true
+        });
+      } else {
+        if (Math.random() < 0.5) {
+          evidence.push({
+            title: "🔍 Minor clue",
+            description: weakDetail + " (" + s.name + ")",
+            relatedSuspect: s.name,
+            detail: weakDetail,
+            isStrong: false
+          });
+        }
+      }
+    });
+  }
+
+  // Assign alibis + evidence
+  if (caseType === 0) {
+    suspects[0].alibi = "I was in the kitchen, washing dishes.\nThe silence felt unnatural.\nI stayed there... I think.";
+    suspects[1].alibi = "I was on a call in my room.\nThe line suddenly cut off.\nI stepped outside briefly.";
+    suspects[2].alibi = "I argued with him earlier.\nI went to the balcony to cool off.\nWhen I came back... it was over.";
+    suspects[3].alibi = "I was reading in the library.\nI didn't hear anything unusual.\nBooks were my only company.";
+
+   addEvidence("🔪 Blood-stained knife", "Fingerprints match the culprit.", "Dinner presence — nothing conclusive.");
+        addEvidence("🍷 Overturned glass", "Wine suggests a struggle occurred.", "No sign of altercation near them.");
+
+  } else if (caseType === 1) {
+    suspects[0].alibi = "I was going through financial papers.\nDisagreements about money.\nI never left the study.";
+    suspects[1].alibi = "I heard something strange downstairs.\nI ignored it at first.\nMaybe I should have checked.";
+    suspects[2].alibi = "I was outside taking a heated call.\nI wasn't paying attention.\nI didn't hear anything.";
+    suspects[3].alibi =  "I was preparing tea in the kitchen.\nNothing stood out to me.\nI went to bed early.";
+
+    addEvidence("📄 Forged document", "Signature is manipulated — benefits the culprit.", "Had document access but no manipulation found.");
+        addEvidence("💰 Missing cheque", "Cheque amount matches culprit's debt.", "No financial motive established.");
+  } else {
+    suspects[0].alibi = "I was texting the entire time.\nYou can check my records.\nI didn't move from my spot.";
+    suspects[1].alibi = "My call got disconnected.\nI stepped out briefly to fix it.\nThat's all.";
+    suspects[2].alibi = "I was resting quietly.\nNothing unusual happened.\nJust another night.";
+    suspects[3].alibi = "I was in the garden.\nI heard a car, nothing more.\nI came in when it got cold.";
+
+    addEvidence("📱 Location mismatch", "Phone data contradicts culprit's alibi. Movement near scene.", "Phone activity normal — no unusual movement.");
+        addEvidence("🔦 Torch found", "Torch has culprit's DNA on grip.", "No connection to torch established.");
+  }
+
+  return {
+    caseId: Math.floor(1000 + seededRandom() * 9000).toString(),
+    caseTitle: "Randomized Case File",
+    setting: "Secluded mansion",
+    victim: "Unknown Victim",
+    time: "Late Night",
+    method: "Undetermined",
+    narrative: `
+<p>A crime has shattered the silence of a secluded mansion.</p>
+<p>The victim was found late at night under suspicious circumstances.
+There were no signs of forced entry — meaning the killer is someone inside.</p>
+<p>All four suspects were present at the scene. Each has a motive.
+Each has something to hide.</p>
+<p>Your job, Detective, is to uncover the truth using:
+evidence, interrogation, and logic.</p>
+<p>Be careful — not everyone is telling the truth.</p>
+`,
+    culprit,
+    suspects,
+    evidence,
+    culpritConfession: "Fine. I did it. It wasn't supposed to happen like this."
+  };
+}
+// ═══════════════════════════════════════════════════════
+//  SCREEN MANAGEMENT
+// ═══════════════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+}
+
+function showPanel(id, chargeAction = false) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  const nb = document.querySelector(`[data-panel="${id}"]`);
+  if (nb) nb.classList.add('active');
+
+  // ── CHANGE 1 ──────────────────────────────────────────────────────────────
+  // Java deducts 2 pts for EVERY menu action including viewing panels.
+  // HTML previously never charged for panel switches. Now we charge -2 per
+  // nav click (chargeAction=true), matching Java's "score -= 2 per choice".
+  if (chargeAction) {
+    GS.actions++;
+    GS.score = Math.max(0, GS.score - 2);
+    updateScore();
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  logNotebook(`Opened ${id.charAt(0).toUpperCase() + id.slice(1)} panel.`);
+}
+
+// ═══════════════════════════════════════════════════════
+//  GAME FLOW
+// ═══════════════════════════════════════════════════════
+async function startNewGame() {
+  showScreen('loading');
+  setLoadingStatus('Contacting dispatch...', 10);
+
+  await sleep(400);
+  setLoadingStatus('Generating crime scene...', 30);
+
+  let caseData;
+  try {
+    setLoadingStatus('AI writing your unique case...', 55);
+    caseData = generateCaseLikeJava();
+    setLoadingStatus('Assembling case file...', 80);
+    await sleep(400);
+    setLoadingStatus('Briefing detective...', 95);
+    await sleep(300);
+  } catch (e) {
+    console.error('AI failed, using fallback:', e);
+    caseData = getFallbackCase();
+  }
+
+  loadCase(caseData);
+  setLoadingStatus('Ready.', 100);
+  await sleep(300);
+  showScreen('game');
+  showPanel('brief');
+}
+
+function loadCase(data) {
+  GS.score = 100;
+  GS.actions = 0;
+  GS.startTime = Date.now();
+  GS.realCulprit = data.culprit;
+  GS.caseId = data.caseId;
+  GS.caseTitle = data.caseTitle;
+  GS.notebook = [];
+  GS.accusedName = null;
+
+  GS.suspects = data.suspects.map(s => ({
+    ...s,
+    suspicionScore: 0,
+    interrogated: false,
+  }));
+
+  GS.evidence = data.evidence.map(e => ({
+    ...e,
+    examined: false,
+  }));
+
+  GS.culpritConfession = data.culpritConfession;
+  GS.caseMetaData = data;
+
+  renderBrief(data);
+  renderSuspects();
+  renderEvidence();
+  renderNotebook();
+  updateScore();
+
+  document.getElementById('sidebar-case-id').textContent =
+    `Case #${data.caseId} — ${data.caseTitle}`;
+  document.getElementById('evidence-badge').textContent = '0';
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER FUNCTIONS
+// ═══════════════════════════════════════════════════════
+function renderBrief(data) {
+  document.getElementById('brief-subtitle').textContent =
+    `Case #${data.caseId} — ${data.caseTitle} — Classified`;
+
+  const narr = document.getElementById('brief-narrative');
+  narr.innerHTML = data.narrative;
+
+  const grid = document.getElementById('brief-info-grid');
+  grid.innerHTML = [
+    { label: 'Setting', val: data.setting },
+    { label: 'Victim', val: data.victim },
+    { label: 'Time of Death', val: data.time },
+    { label: 'Cause of Death', val: data.method },
+    { label: 'Suspects', val: '4 Persons of Interest' },
+    { label: 'Status', val: 'Case Open — Active Investigation' },
+  ].map(i => `
+    <div class="info-card">
+      <label>${i.label}</label>
+      <div class="info-val">${i.val}</div>
+    </div>`).join('');
+}
+
+function renderSuspects() {
+  const grid = document.getElementById('suspects-grid');
+  grid.innerHTML = GS.suspects.map((s, i) => {
+    const initials = s.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    const barPct = Math.min((s.suspicionScore / 100) * 100, 100);
+    return `
+    <div class="suspect-card ${s.interrogated ? 'interrogated' : ''}" id="suspect-card-${i}">
+      <div class="suspect-card-inner">
+        <div class="suspect-avatar"><span class="initials">${initials}</span></div>
+        <div class="suspect-info">
+          <div class="suspect-name">${s.name}</div>
+          <div class="suspect-personality">${s.personality}</div>
+          <div class="suspicion-bar-wrap">
+            <div class="suspicion-bar-label">
+              <span>Suspicion Level</span>
+              <span>${s.suspicionScore} pts</span>
+            </div>
+            <div class="suspicion-bar-track">
+              <div class="suspicion-bar-fill" style="width:${barPct}%"></div>
+            </div>
+          </div>
+          ${s.interrogated ? `
+          <div class="suspect-alibi">${s.interrogationResponse || s.alibi}</div>` : ''}
+        </div>
+      </div>
+      <div class="interrogate-btn-row">
+        ${s.interrogated
+          ? `<span class="suspect-tag yes">&#10004; Interrogated</span>`
+          : `<button class="btn btn-sm" onclick="openInterrogation(${i})">Interrogate</button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+
+  renderAccuseOptions();
+}
+
+function renderAccuseOptions() {
+  const grid = document.getElementById('accuse-suspects');
+  grid.innerHTML = GS.suspects.map((s, i) => `
+    <button class="accuse-option" data-idx="${i}" onclick="selectAccuse(${i})">
+      <div>
+        <div class="opt-name">${s.name}</div>
+        <div class="opt-personality">${s.personality}</div>
+      </div>
+      <div class="opt-score">${s.suspicionScore} pts suspicion</div>
+    </button>`).join('');
+  document.getElementById('btn-confirm-accuse').disabled = true;
+  GS.accusedName = null;
+}
+
+function selectAccuse(idx) {
+  document.querySelectorAll('.accuse-option').forEach(o => o.classList.remove('selected'));
+  document.querySelectorAll('.accuse-option')[idx].classList.add('selected');
+  GS.accusedName = GS.suspects[idx].name;
+  document.getElementById('btn-confirm-accuse').disabled = false;
+}
+
+function renderEvidence() {
+  const list = document.getElementById('evidence-list');
+  list.innerHTML = GS.evidence.map((e, i) => `
+    <div class="evidence-card ${e.examined ? 'examined' : ''}" id="evidence-card-${i}"
+      onclick="${e.examined ? '' : `examineEvidence(${i})`}">
+      <div class="evidence-header">
+        <div class="evidence-title">${e.title}</div>
+        <div class="evidence-status ${e.examined ? 'examined' : 'new'}">
+          ${e.examined ? '&#10004; Examined' : 'New'}
+        </div>
+      </div>
+      <div class="evidence-desc">${e.description}</div>
+      ${e.examined
+        ? `<div class="evidence-detail">${e.detail}</div>`
+        : `<div class="evidence-hint">Click to examine this piece of evidence</div>`
+      }
+    </div>`).join('');
+}
+
+function renderNotebook() {
+  const el = document.getElementById('notebook-entries');
+  if (GS.notebook.length === 0) {
+    el.innerHTML = '<div class="notebook-empty">Begin investigating to see notes appear here.</div>';
+  } else {
+    el.innerHTML = GS.notebook.map(e =>
+      `<div class="notebook-entry">${e}</div>`).join('');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  ACTIONS
+// ═══════════════════════════════════════════════════════
+async function openInterrogation(idx) {
+  const suspect = GS.suspects[idx];
+  if (suspect.interrogated) return;
+
+  const modal = document.getElementById('modal-interrogate');
+  const body = document.getElementById('modal-body');
+  document.getElementById('modal-suspect-name').textContent =
+    `Interrogating ${suspect.name}`;
+
+  body.innerHTML = `
+    <div class="interrogation-spinner">
+      <div class="spinner-ring"></div>
+      <div class="spinner-label">Applying pressure...</div>
+    </div>`;
+  modal.classList.add('open');
+
+  await sleep(1800);
+
+  // ── CHANGE 2 ──────────────────────────────────────────────────────────────
+  // Java personality bonuses: Nervous=15, Aggressive=10, Calculating=12, Calm=5.
+  // Previous HTML also had Evasive=14 and Charming=8, which don't exist in Java.
+  // These are removed. Only the 4 Java personalities are used now.
+  // Default fallback stays 5 (same as Java's "default" case).
+  const personalityBonus = {
+  'Nervous': 18,
+  'Aggressive': 12,
+  'Calculating': 10,
+  'Calm': 6
+};
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const bonus = personalityBonus[suspect.personality] ?? 5;
+  suspect.suspicionScore += bonus;
+  suspect.interrogated = true;
+  if (suspect.isLying) {
+  suspect.suspicionScore += 20; // BIG penalty for lying
+}
+
+  // ── CHANGE 3 ──────────────────────────────────────────────────────────────
+  // Java deducts exactly 2 pts per action (score -= 2 in handleChoice).
+  // Previous HTML called cost(3) here, deducting 3 pts for interrogation.
+  // Corrected to cost(2) to match Java's flat -2 per action rule.
+  cost(2);
+  // ─────────────────────────────────────────────────────────────────────────
+
+ let alibiText = suspect.alibi;
+
+if (suspect.isLying) {
+  alibiText += " (Their statement feels inconsistent...)";
+}
+  const responseText = suspect.interrogationResponse || '';
+
+  body.innerHTML = `
+    <div class="alibi-text" id="modal-alibi">${alibiText}</div>
+    ${responseText ? `
+    <div style="margin-bottom:16px; padding:12px 16px; background:rgba(200,57,43,0.06); border-left:2px solid var(--accent);">
+      <div style="font-size:10px; letter-spacing:0.2em; color:var(--muted); text-transform:uppercase; margin-bottom:6px;">Under Pressure</div>
+      <div style="font-family:'Playfair Display',serif; font-style:italic; font-size:14px; color:var(--paper); line-height:1.65;">${responseText}</div>
+    </div>` : ''}
+    <div class="suspicion-result">
+      <div>
+        <div class="suspicion-result-label">Suspicion Score</div>
+        <div class="suspicion-result-val">${suspect.suspicionScore}</div>
+        <div class="suspicion-result-desc">+${bonus} pts from interrogation (${suspect.personality})</div>
+      </div>
+    </div>`;
+
+  logNotebook(`Interrogated ${suspect.name} [${suspect.personality}] — alibi recorded.`);
+  renderSuspects();
+}
+
+function examineEvidence(idx) {
+  const ev = GS.evidence[idx];
+  if (ev.examined) return;
+
+  ev.examined = true;
+
+  // ── CHANGE 4 ──────────────────────────────────────────────────────────────
+  // Java awards culprit's evidence +25 suspicion pts, others +8.
+  // This was already correct in the HTML. Confirmed and kept as-is.
+  GS.suspects.forEach(s => {
+    if (s.name === ev.relatedSuspect) {
+      const pts = ev.isStrong ? 30 : 6;
+      s.suspicionScore += pts;
+    }
+  });
+  // ─────────────────────────────────────────────────────────────────────────
+
+  cost(2);
+
+  const examined = GS.evidence.filter(e => e.examined).length;
+  document.getElementById('evidence-badge').textContent = examined;
+
+  renderEvidence();
+  renderSuspects();
+  logNotebook(`Examined evidence: "${ev.title}".`);
+}
+
+function requestHint() {
+  // ── CHANGE 5 ──────────────────────────────────────────────────────────────
+  // Java: score -= 5 for hint, then also score -= 2 for the menu action itself.
+  // Previous HTML: called cost(1, false) which deducted 1 EXTRA point on top
+  // of the -5, making it -6 total — wrong. Now we do exactly: -5 for hint,
+  // count as 1 action, -2 action penalty = -7 total, matching Java's -5 hint
+  // cost + -2 action cost = -7 total per hint request.
+  GS.score = Math.max(0, GS.score - 5);
+  GS.actions++;
+  GS.score = Math.max(0, GS.score - 2);
+  updateScore();
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const top = GS.suspects.reduce((a, b) => a.suspicionScore > b.suspicionScore ? a : b);
+  const toast = document.getElementById('hint-toast');
+  const text = document.getElementById('hint-toast-text');
+
+  if (top.suspicionScore > 0) {
+    text.textContent = `Evidence points most strongly toward ${top.name} (${top.suspicionScore} pts suspicion). But trust the evidence, not just the score.`;
+  } else {
+    text.textContent = 'Examine all evidence and interrogate every suspect before making your accusation.';
+  }
+
+  toast.classList.add('show');
+  logNotebook('Requested a detective hint (−5 pts).');
+  setTimeout(() => toast.classList.remove('show'), 5000);
+}
+
+function confirmAccusation() {
+  if (!GS.accusedName) return;
+
+  const elapsed = Math.round((Date.now() - GS.startTime) / 1000);
+
+  // ── CHANGE 6 ──────────────────────────────────────────────────────────────
+  // Java time bonus: elapsed < 120s = +20, elapsed < 300s = +10, else 0.
+  // This was already correct in the HTML. Confirmed and kept as-is.
+  const timeBonus = elapsed < 120 ? 20 : elapsed < 300 ? 10 : 0;
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const correct = GS.accusedName.toLowerCase() === GS.realCulprit.toLowerCase();
+
+  if (correct) {
+    GS.score = Math.min(GS.score + timeBonus, 999);
+    showVerdict(true, elapsed, timeBonus);
+  } else {
+    // ── CHANGE 7 ──────────────────────────────────────────────────────────
+    // Java deducts 30 pts for wrong accusation. Already correct. Kept as-is.
+    GS.score = Math.max(0, GS.score - 30);
+    // ───────────────────────────────────────────────────────────────────────
+    showVerdict(false, elapsed, 0);
+  }
+}
+
+function showVerdict(correct, elapsed, bonus) {
+  const glow = document.getElementById('verdict-glow');
+  const stamp = document.getElementById('verdict-stamp');
+  const headline = document.getElementById('verdict-headline');
+  const sub = document.getElementById('verdict-sub');
+  const conf = document.getElementById('verdict-confession');
+
+  glow.className = 'verdict-glow ' + (correct ? 'correct' : 'wrong');
+  stamp.className = 'verdict-stamp ' + (correct ? 'correct' : 'wrong');
+
+  if (correct) {
+    stamp.innerHTML = 'CASE<br>SOLVED';
+    headline.textContent = `${GS.accusedName} — Guilty as Charged`;
+    sub.textContent = `Your instincts and evidence led to justice.${bonus > 0 ? ` Speed bonus of +${bonus} pts awarded.` : ''} The department commends your work.`;
+    conf.innerHTML = `<strong style="color:var(--gold);font-style:normal;">${GS.realCulprit}:</strong> ${GS.culpritConfession}`;
+  } else {
+    stamp.innerHTML = 'CASE<br>FAILED';
+    headline.textContent = `${GS.accusedName} — Wrongly Accused`;
+    sub.textContent = `The real culprit was ${GS.realCulprit}. They slipped away while you pursued the wrong lead. −30 points.`;
+    conf.innerHTML = `<strong style="color:var(--accent);font-style:normal;">The Truth:</strong> ${GS.realCulprit} was the murderer. The case remains unsolved in the public record.`;
+  }
+
+  document.getElementById('vs-score').textContent = GS.score;
+  document.getElementById('vs-actions').textContent = GS.actions;
+  document.getElementById('vs-time').textContent = `${elapsed}s`;
+
+  showScreen('verdict');
+}
+
+// ═══════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════
+function cost(actionPenalty, countAction = true) {
+  if (countAction) GS.actions++;
+  GS.score = Math.max(0, GS.score - actionPenalty);
+  updateScore();
+}
+
+function updateScore() {
+  document.getElementById('score-display').textContent = GS.score;
+  document.getElementById('action-display').textContent = GS.actions;
+}
+
+function logNotebook(entry) {
+  GS.notebook.push(entry);
+  renderNotebook();
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function setLoadingStatus(msg, pct) {
+  document.getElementById('loading-status').textContent = msg;
+  document.getElementById('loading-bar').style.width = pct + '%';
+}
+
+function goToTitle() {
+  showScreen('title');
+}
+
+function showHowToPlay() {
+  alert(
+    'HOW TO PLAY — CODE: GUILTY\n\n' +
+    '1. Read the Case Brief to understand the crime\n' +
+    '2. Interrogate suspects to hear their alibis\n' +
+    '3. Examine Evidence to raise suspicion scores\n' +
+    '4. Use your Notebook to track findings\n' +
+    '5. Request a Hint if stuck (costs 5 pts + 2 action penalty)\n' +
+    '6. Make your Accusation when ready\n\n' +
+    'SCORING:\n' +
+    '• Start with 100 points\n' +
+    '• Each action costs 2 points\n' +
+    '• Hints cost 5 extra points\n' +
+    '• Wrong accusation: −30 points\n' +
+    '• Fast solve bonus: up to +20 points\n\n' +
+    'Every case is uniquely AI-generated.'
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+//  FALLBACK CASE (if API fails)
+// ═══════════════════════════════════════════════════════
+function getFallbackCase() {
+  const culprit = 'Alice Vance';
+  return {
+    caseId: '0042',
+    caseTitle: 'The Midnight Inheritance',
+    setting: 'Hargrove Estate — a secluded Victorian manor on the cliffs',
+    victim: 'Lord Edmund Hargrove',
+    time: '11:47 PM',
+    method: 'Poisoning — traces of arsenic in evening brandy',
+    narrative: `<p>The call came in at midnight. Lord Edmund Hargrove, patriarch of the Hargrove estate, was found slumped in his leather armchair in the west drawing room. The brandy glass beside him smelled faintly of almonds — a detail the coroner confirmed: arsenic, administered sometime that evening.</p><p>There was no forced entry. Every door was locked from within. The four people gathered under that roof for the reading of the Lord's will had motive, access, and no alibi that holds water under scrutiny.</p><p>One of them crossed a line last night that cannot be uncrossed. Your job, Detective, is to find out which one — before morning turns suspicion into accusation and accusation into a very expensive lawyer.</p>`,
+    culprit,
+    culpritConfession: "I had no choice. Edmund was going to change the will — cut us all out. I acted in desperation. I'm not proud of it, but I won't pretend I didn't know what I was doing.",
+    suspects: [
+      { name: 'John Hargrove', personality: 'Calm', alibi: "I was in the library the entire evening. Reading. I don't drink anymore — haven't in three years.", interrogationResponse: "You can check the logbook. I signed out two books at 9 PM. I didn't leave that room." },
+      { name: 'Alice Vance', personality: 'Nervous', alibi: "I was upstairs, going over some documents. I heard something around eleven but assumed it was the wind. This house makes noises.", interrogationResponse: "I may have gone to the kitchen briefly. I couldn't sleep. But I didn't go near the drawing room. I swear." },
+      { name: 'Mark Calloway', personality: 'Aggressive', alibi: "I was on the phone with my solicitor until midnight. You can verify that. I had no reason to want Edmund dead — yet.", interrogationResponse: "Yes, we argued earlier. About money. That's hardly a motive for murder. People argue all the time." },
+      { name: 'Sophia Dray', personality: 'Calculating', alibi: "I retired early. Headache. I took a sleeping tablet at nine and barely remember anything after that.", interrogationResponse: "I understand how this looks. But I was asleep. The tablet knocked me out completely." },
+    ],
+    evidence: [
+      { title: '🍷 Poisoned Brandy Decanter', description: 'Found on the side table next to the victim. Crystal decanter, half-empty.', relatedSuspect: culprit, detail: 'Arsenic traces confirmed. Fingerprints on the stopper match a partial — consistent with someone who wore gloves but handled it briefly without them. Alice Vance\'s ring left a faint impression on the glass surface.', isStrong: true },
+      { title: '📝 Amended Will Document', description: 'Draft document found in Lord Hargrove\'s desk drawer, partially shredded.', relatedSuspect: culprit, detail: 'The amendment would have disinherited Alice Vance entirely, transferring her share to a charity. Motive established.', isStrong: true },
+      { title: '🧤 Discarded Latex Glove', description: 'Found in the kitchen waste bin beneath vegetable peelings.', relatedSuspect: 'Alice Vance', detail: 'Single glove. Lab analysis found trace arsenic on the fingertips, consistent with handling the substance. The bin was accessed within the last 12 hours.', isStrong: true },
+    ]
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+//  EVENT LISTENERS
+// ═══════════════════════════════════════════════════════
+document.getElementById('btn-new-case').addEventListener('click', startNewGame);
+
+// ── CHANGE 8 ──────────────────────────────────────────────────────────────
+// Nav button clicks now call showPanel with chargeAction=true so each
+// panel switch costs -2 pts and +1 action, matching Java's menu action cost.
+document.querySelectorAll('[data-panel]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const panel = btn.getAttribute('data-panel');
+    showPanel(panel, true);
+    if (panel !== 'suspects') renderSuspects();
+    if (panel !== 'evidence') renderEvidence();
+  });
+});
+// ─────────────────────────────────────────────────────────────────────────
+
+document.getElementById('btn-hint').addEventListener('click', requestHint);
+document.getElementById('btn-confirm-accuse').addEventListener('click', confirmAccusation);
+document.getElementById('modal-close-btn').addEventListener('click', () => {
+  document.getElementById('modal-interrogate').classList.remove('open');
+});
+document.getElementById('modal-interrogate').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget)
+    document.getElementById('modal-interrogate').classList.remove('open');
+});
+</script>
+</body>
+</html>
