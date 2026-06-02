@@ -33,7 +33,7 @@ CODE: GUILTY is an interactive detective game where players solve randomly gener
     3. Notebook entries
     4. Randomized case generation
 
-* Technologies Used
+# Technologies Used
 1. Java
 2. Java Collections Framework
 3. Java Concurrency API
